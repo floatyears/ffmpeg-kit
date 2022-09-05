@@ -26,96 +26,113 @@
 #include "libavutil/log.h"
 #include "libavutil/ffversion.h"
 
+#ifdef _MSC_VER
+#define DllExport __declspec(dllexport)
+#else
+#if __CYGWIN__
+#define DllExport	__declspec(dllexport)
+#elif defined(__GNUC__)
+#if __GNUC__ >= 4
+#define  DllExport __attribute__((visibility("default")))
+#else
+#define DllExport __attribute__((dllexport))
+#endif
+#else
+#define DllExport
+#endif
+#endif // MSVER
+
+extern "C" void DllExport InitFunctions(void* _logFunc, void* _statisticsFunc, void* _safOpenFunc, void* _safCloseFunc);
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    enableNativeRedirection
  * Signature: ()V
  */
-extern "C" void FFmpegKitConfig_enableNativeRedirection(JNIEnv *, jclass);
+extern "C" void DllExport FFmpegKitConfig_enableNativeRedirection();
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    disableNativeRedirection
  * Signature: ()V
  */
-extern "C" void FFmpegKitConfig_disableNativeRedirection(JNIEnv *, jclass);
+extern "C" void DllExport FFmpegKitConfig_disableNativeRedirection();
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    setNativeLogLevel
  * Signature: (I)V
  */
-extern "C" void FFmpegKitConfig_setNativeLogLevel(JNIEnv *, jclass, jint);
+extern "C" void DllExport FFmpegKitConfig_setNativeLogLevel(int);
 L
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    getNativeLogLevel
  * Signature: ()I
  */
-extern "C" int FFmpegKitConfig_getNativeLogLevel(JNIEnv *, jclass);
+extern "C" int DllExport FFmpegKitConfig_getNativeLogLevel();
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    getNativeFFmpegVersion
  * Signature: ()Ljava/lang/String;
  */
-extern "C" char* FFmpegKitConfig_getNativeFFmpegVersion(JNIEnv *, jclass);
+extern "C" char* DllExport FFmpegKitConfig_getNativeFFmpegVersion();
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    getNativeVersion
  * Signature: ()Ljava/lang/String;
  */
-extern "C" char* FFmpegKitConfig_getNativeVersion(JNIEnv *, jclass);
+extern "C" char* DllExport FFmpegKitConfig_getNativeVersion();
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    nativeFFmpegExecute
  * Signature: (J[Ljava/lang/String;)I
  */
-extern "C" int FFmpegKitConfig_nativeFFmpegExecute(JNIEnv *, jclass, jlong, jobjectArray);
+extern "C" int DllExport FFmpegKitConfig_nativeFFmpegExecute(long, char* []);
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    nativeFFmpegCancel
  * Signature: (J)V
  */
-extern "C" void FFmpegKitConfig_nativeFFmpegCancel(JNIEnv *, jclass, jlong);
+extern "C" void DllExport FFmpegKitConfig_nativeFFmpegCancel(long);
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    registerNewNativeFFmpegPipe
  * Signature: (Ljava/lang/String;)I
  */
-extern "C" int FFmpegKitConfig_registerNewNativeFFmpegPipe(JNIEnv *env, jclass object, jstring ffmpegPipePath);
+extern "C" int DllExport FFmpegKitConfig_registerNewNativeFFmpegPipe(char* ffmpegPipePath);
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    getNativeBuildDate
  * Signature: ()Ljava/lang/String;
  */
-extern "C" char* FFmpegKitConfig_getNativeBuildDate(JNIEnv *env, jclass object);
+extern "C" char* DllExport FFmpegKitConfig_getNativeBuildDate();
 
 /**
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    setNativeEnvironmentVariable
  * Signature: (Ljava/lang/String;Ljava/lang/String;)I
  */
-extern "C" int FFmpegKitConfig_setNativeEnvironmentVariable(JNIEnv *env, jclass object, jstring variableName, jstring variableValue);
+extern "C" int DllExport FFmpegKitConfig_setNativeEnvironmentVariable(char* variableName, char* variableValue);
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    ignoreNativeSignal
  * Signature: (I)V
  */
-extern "C" void FFmpegKitConfig_ignoreNativeSignal(JNIEnv *env, jclass object, jint signum);
+extern "C" void DllExport FFmpegKitConfig_ignoreNativeSignal(int signum);
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    messagesInTransmit
  * Signature: (J)I
  */
-extern "C" int FFmpegKitConfig_messagesInTransmit(JNIEnv *env, jclass object, jlong id);
+extern "C" int DllExport FFmpegKitConfig_messagesInTransmit(long id);
 
 #endif /* FFMPEG_KIT_H */

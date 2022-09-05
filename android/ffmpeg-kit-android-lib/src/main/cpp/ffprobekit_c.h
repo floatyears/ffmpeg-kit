@@ -17,14 +17,16 @@
  * along with FFmpegKit.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FFPROBE_KIT_CSHARP_H
-#define FFPROBE_KIT_CSHARP_H
+#ifndef FFPROBE_KIT_C_H
+#define FFPROBE_KIT_C_H
+
+#include "ffmpegkit_c.h"
 
 /*
  * Class:     com_arthenica_ffmpegkit_FFmpegKitConfig
  * Method:    nativeFFprobeExecute
  * Signature: (J[Ljava/lang/String;)I
  */
-extern "C" int FFmpegKitConfig_nativeFFprobeExecute(long id, char* stringArray[]);
+extern "C" void DllExport FFmpegKitConfig_nativeFFprobeExecute(long id, char* stringArray[], int programArgumentCount);
 
 #endif /* FFPROBE_KIT_H */

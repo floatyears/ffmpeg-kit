@@ -25,6 +25,7 @@
 #include "libavcodec/jni.h"
 #include "libavutil/bprint.h"
 #include "ffmpegkit.h"
+#include "ffprobekit_c.h"
 
 /** Forward declaration for function defined in fftools_ffprobe.c */
 int ffprobe_execute(int argc, char **argv);
@@ -38,14 +39,12 @@ extern void resetMessagesInTransmit(long sessionId);
 /**
  * Synchronously executes FFprobe natively with arguments provided.
  *
- * @param env pointer to native method interface
- * @param object reference to the class on which this method is invoked
  * @param id session id
  * @param stringArray reference to the object holding FFprobe command arguments
  * @return zero on successful execution, non-zero on error
  */
-JNIEXPORT jint JNICALL FFmpegKitConfig_nativeFFprobeExecute(JNIEnv *env, jclass object, jlong id, jobjectArray stringArray) {
-    jstring *tempArray = NULL;
+extern "C" void DllExport FFmpegKitConfig_nativeFFprobeExecute(long id, char* stringArray[], int programArgumentCount) {
+    // jstring *tempArray = NULL;
     int argumentCount = 1;
     char **argv = NULL;
 
@@ -53,10 +52,10 @@ JNIEXPORT jint JNICALL FFmpegKitConfig_nativeFFprobeExecute(JNIEnv *env, jclass 
     av_log_set_level(configuredLogLevel);
 
     if (stringArray) {
-        int programArgumentCount = (*env)->GetArrayLength(env, stringArray);
+        // int programArgumentCount = (*env)->GetArrayLength(env, stringArray);
         argumentCount = programArgumentCount + 1;
 
-        tempArray = (jstring *) av_malloc(sizeof(jstring) * programArgumentCount);
+        // tempArray = (jstring *) av_malloc(sizeof(jstring) * programArgumentCount);
     }
 
     /* PRESERVE USAGE FORMAT
@@ -70,9 +69,10 @@ JNIEXPORT jint JNICALL FFmpegKitConfig_nativeFFprobeExecute(JNIEnv *env, jclass 
     // PREPARE ARRAY ELEMENTS
     if (stringArray) {
         for (int i = 0; i < (argumentCount - 1); i++) {
-            tempArray[i] = (jstring) (*env)->GetObjectArrayElement(env, stringArray, i);
-            if (tempArray[i] != NULL) {
-                argv[i + 1] = (char *) (*env)->GetStringUTFChars(env, tempArray[i], 0);
+            // tempArray[i] = (jstring) (*env)->GetObjectArrayElement(env, stringArray, i);
+            // if (tempArray[i] != NULL) 
+            {
+                argv[i + 1] = stringArray[i];//(char *) (*env)->GetStringUTFChars(env, tempArray[i], 0);
             }
         }
     }
@@ -90,13 +90,13 @@ JNIEXPORT jint JNICALL FFmpegKitConfig_nativeFFprobeExecute(JNIEnv *env, jclass 
     removeSession((long) id);
 
     // CLEANUP
-    if (tempArray) {
-        for (int i = 0; i < (argumentCount - 1); i++) {
-            (*env)->ReleaseStringUTFChars(env, tempArray[i], argv[i + 1]);
-        }
+    // if (tempArray) {
+    //     for (int i = 0; i < (argumentCount - 1); i++) {
+    //         (*env)->ReleaseStringUTFChars(env, tempArray[i], argv[i + 1]);
+    //     }
 
-        av_free(tempArray);
-    }
+    //     av_free(tempArray);
+    // }
     av_free(argv[0]);
     av_free(argv);
 
