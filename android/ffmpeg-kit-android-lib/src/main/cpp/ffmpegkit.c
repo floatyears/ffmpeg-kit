@@ -54,8 +54,8 @@ struct CallbackData {
 
 /** Session control variables */
 #define SESSION_MAP_SIZE 1000
-static atomic_short sessionMap[SESSION_MAP_SIZE];
-static atomic_int sessionInTransitMessageCountMap[SESSION_MAP_SIZE];
+atomic_short sessionMap[SESSION_MAP_SIZE];
+atomic_int sessionInTransitMessageCountMap[SESSION_MAP_SIZE];
 
 /** Redirection control variables */
 static pthread_mutex_t lockMutex;
@@ -69,7 +69,7 @@ struct CallbackData *callbackDataHead;
 struct CallbackData *callbackDataTail;
 
 /** Global reference to the virtual machine running */
-static JavaVM *globalVm;
+JavaVM *globalVm;
 
 /** Global reference of Config class in Java */
 static jclass configClass;
@@ -589,6 +589,7 @@ int saf_close(int fd) {
  * @return JNI version needed by 'ffmpegkit' library
  */
 jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+    return JNI_VERSION_1_6;
     JNIEnv *env;
     if ((*vm)->GetEnv(vm, (void**)(&env), JNI_VERSION_1_6) != JNI_OK) {
         LOGE("OnLoad failed to GetEnv for class %s.\n", configClassName);

@@ -27,6 +27,6 @@
  * Method:    nativeFFprobeExecute
  * Signature: (J[Ljava/lang/String;)I
  */
-extern "C" void DllExport FFmpegKitConfig_nativeFFprobeExecute(long id, char* stringArray[], int programArgumentCount);
+int DllExport FFmpegKitConfig_nativeFFprobeExecute(long id, char* stringArray[], int programArgumentCount);
 
 #endif /* FFPROBE_KIT_H */

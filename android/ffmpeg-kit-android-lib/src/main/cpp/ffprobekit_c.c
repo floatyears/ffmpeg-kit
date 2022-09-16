@@ -43,7 +43,7 @@ extern void resetMessagesInTransmit(long sessionId);
  * @param stringArray reference to the object holding FFprobe command arguments
  * @return zero on successful execution, non-zero on error
  */
-extern "C" void DllExport FFmpegKitConfig_nativeFFprobeExecute(long id, char* stringArray[], int programArgumentCount) {
+int DllExport FFmpegKitConfig_nativeFFprobeExecute(long id, char* stringArray[], int programArgumentCount) {
     // jstring *tempArray = NULL;
     int argumentCount = 1;
     char **argv = NULL;

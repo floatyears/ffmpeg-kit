@@ -31,7 +31,53 @@
 #include "ffmpegkit_c.h"
 #include "ffprobekit.h"
 
-typedef void (*LogFunc)(long sessionId, int logLevel, uint8_t* byteArray);
+# define LogType 1
+# define StatisticsType 2
+#define SESSION_MAP_SIZE 1000
+extern atomic_short sessionMap[SESSION_MAP_SIZE];
+extern atomic_int sessionInTransitMessageCountMap[SESSION_MAP_SIZE];
+extern JavaVM *globalVm;
+
+extern int redirectionEnabled;
+extern int configuredLogLevel;
+
+/** Callback data structure */
+struct CallbackData {
+  int type;                 // 1 (log callback) or 2 (statistics callback)
+  long sessionId;           // session identifier
+
+  int logLevel;             // log level
+  AVBPrint logData;         // log data
+
+  int statisticsFrameNumber;        // statistics frame number
+  float statisticsFps;              // statistics fps
+  float statisticsQuality;          // statistics quality
+  int64_t statisticsSize;           // statistics size
+  int statisticsTime;               // statistics time
+  double statisticsBitrate;         // statistics bitrate
+  double statisticsSpeed;           // statistics speed
+
+  struct CallbackData *next;
+};
+extern struct CallbackData *callbackDataRemove();
+
+extern struct CallbackData *callbackDataHead;
+extern struct CallbackData *callbackDataTail;
+
+extern void monitorWait(int milliSeconds);
+extern void monitorInit();
+extern void monitorNotify();
+extern void mutexInit();
+extern void mutexLock();
+extern void mutexUnlock();
+extern void ffmpegkit_log_callback_function(void *ptr, int level, const char* format, va_list vargs);
+extern void ffmpegkit_statistics_callback_function(int frameNumber, float fps, float quality, int64_t size, int time, double bitrate, double speed);
+extern void removeSession(long id);
+extern void cancelSession(long id);
+extern void addSession(long id);
+extern void resetMessagesInTransmit(long id);
+
+typedef void (*LogFunc)(long sessionId, int logLevel, int size, uint8_t* byteArray);
 
 /** Global reference of log redirection method in Java */
 static LogFunc logFunc;
@@ -42,13 +88,19 @@ typedef void (*StatisticsFunc)(long sessionId, int statisticsFrameNumber, float 
 
 static StatisticsFunc statisticsFunc;
 
-typedef void (*SafOpenFunc)(int safId);
+typedef int (*SafOpenFunc)(int safId);
 static SafOpenFunc safOpenFunc;
 
-typedef void (*SafCloseFunc)(int fd);
+typedef int (*SafCloseFunc)(int fd);
 static SafCloseFunc safCloseFunc;
 
 pthread_t callbackThreadEx;
+extern __thread volatile long globalSessionId;
+extern volatile int handleSIGQUIT;
+extern volatile int handleSIGINT;
+extern volatile int handleSIGTERM;
+extern volatile int handleSIGXCPU;
+extern volatile int handleSIGPIPE;
 
 /** Forward declaration for function defined in fftools_ffmpeg.c */
 int ffmpeg_execute(int argc, char **argv);
@@ -56,7 +108,7 @@ int ffmpeg_execute(int argc, char **argv);
 /**
  * Forwards callback messages to Java classes.
  */
-void *callbackThreadFunctionEx() {
+int DllExport consumeLogAndStatistics() {
     // JNIEnv *env;
     // jint getEnvRc = (*globalVm)->GetEnv(globalVm, (void**) &env, JNI_VERSION_1_6);
     // if (getEnvRc != JNI_OK) {
@@ -73,7 +125,7 @@ void *callbackThreadFunctionEx() {
 
     LOGD("Async callback block started.\n");
 
-    while(redirectionEnabled) {
+    if(redirectionEnabled) {
 
         struct CallbackData *callbackData = callbackDataRemove();
         if (callbackData != NULL) {
@@ -89,7 +141,7 @@ void *callbackThreadFunctionEx() {
                 // (*env)->DeleteLocalRef(env, byteArray);
                 if(logFunc != NULL)
                 {
-                    logFunc((long)callbackData->sessionId, callbackData->logLevel, callbackData->logData.str);
+                    logFunc((long)callbackData->sessionId, callbackData->logLevel, size, callbackData->logData.str);
                 }
 
                 // CLEAN LOG DATA
@@ -118,9 +170,10 @@ void *callbackThreadFunctionEx() {
             // CLEAN STRUCT
             callbackData->next = NULL;
             av_free(callbackData);
-
+            return 0;
         } else {
-            monitorWait(100);
+            // monitorWait(100);
+            return -1;
         }
     }
 
@@ -128,7 +181,7 @@ void *callbackThreadFunctionEx() {
 
     LOGD("Async callback block stopped.\n");
 
-    return NULL;
+    return -1;
 }
 
 /**
@@ -141,8 +194,9 @@ int saf_open_c(int safId) {
 
     if(safOpenFunc != NULL)
     {
-        safOpenFunc(safId);
+        return safOpenFunc(safId);
     }
+    return -1;
 }
 
 /**
@@ -155,8 +209,9 @@ int saf_close_c(int fd) {
 
     if(safCloseFunc != NULL)
     {
-        safCloseFunc(fd);
+        return safCloseFunc(fd);
     }
+    return -1;
 }
 
 /**
@@ -166,7 +221,8 @@ int saf_close_c(int fd) {
  * @param reserved reserved
  * @return JNI version needed by 'ffmpegkit' library
  */
-extern "C" void DllExport InitFunctions(void* _logFunc, void* _statisticsFunc, void* _safOpenFunc, void* _safCloseFunc) {
+// jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+void DllExport InitFunctions(void* _logFunc, void* _statisticsFunc, void* _safOpenFunc, void* _safCloseFunc) {
     // JNIEnv *env;
     // if ((*vm)->GetEnv(vm, (void**)(&env), JNI_VERSION_1_6) != JNI_OK) {
     //     LOGE("OnLoad failed to GetEnv for class %s.\n", configClassName);
@@ -255,7 +311,7 @@ extern "C" void DllExport InitFunctions(void* _logFunc, void* _statisticsFunc, v
  *
  * @param level log level
  */
-extern "C" void DllExport FFmpegKitConfig_setNativeLogLevel(jint level) {
+void DllExport FFmpegKitConfig_setNativeLogLevel(int level) {
     configuredLogLevel = level;
 }
 
@@ -263,7 +319,7 @@ extern "C" void DllExport FFmpegKitConfig_setNativeLogLevel(jint level) {
  * Returns current log level.
  *
  */
-extern "C" int DllExport FFmpegKitConfig_getNativeLogLevel() {
+int DllExport FFmpegKitConfig_getNativeLogLevel() {
     return configuredLogLevel;
 }
 
@@ -271,7 +327,7 @@ extern "C" int DllExport FFmpegKitConfig_getNativeLogLevel() {
  * Enables log and statistics redirection.
  *
  */
-extern "C" void DllExport FFmpegKitConfig_enableNativeRedirection() {
+void DllExport FFmpegKitConfig_enableNativeRedirection() {
     mutexLock();
 
     if (redirectionEnabled != 0) {
@@ -282,11 +338,11 @@ extern "C" void DllExport FFmpegKitConfig_enableNativeRedirection() {
 
     mutexUnlock();
 
-    int rc = pthread_create(&callbackThreadEx, 0, callbackThreadFunctionEx, 0);
-    if (rc != 0) {
-        LOGE("Failed to create callback thread (rc=%d).\n", rc);
-        return;
-    }
+    // int rc = pthread_create(&callbackThreadEx, 0, callbackThreadFunctionEx, 0);
+    // if (rc != 0) {
+    //     LOGE("Failed to create callback thread (rc=%d).\n", rc);
+    //     return;
+    // }
 
     av_log_set_callback(ffmpegkit_log_callback_function);
     set_report_callback(ffmpegkit_statistics_callback_function);
@@ -296,7 +352,7 @@ extern "C" void DllExport FFmpegKitConfig_enableNativeRedirection() {
  * Disables log and statistics redirection.
  *
  */
-extern "C" void DllExport FFmpegKitConfig_disableNativeRedirection() {
+void DllExport FFmpegKitConfig_disableNativeRedirection() {
 
     mutexLock();
 
@@ -319,7 +375,7 @@ extern "C" void DllExport FFmpegKitConfig_disableNativeRedirection() {
  *
  * @return FFmpeg version string
  */
-extern "C" char* DllExport FFmpegKitConfig_getNativeFFmpegVersion() {
+char* DllExport FFmpegKitConfig_getNativeFFmpegVersion() {
     return FFMPEG_VERSION;//(*env)->NewStringUTF(env, FFMPEG_VERSION);
 }
 
@@ -328,7 +384,7 @@ extern "C" char* DllExport FFmpegKitConfig_getNativeFFmpegVersion() {
  *
  * @return FFmpegKit version string
  */
-extern "C" char* DllExport FFmpegKitConfig_getNativeVersion() {
+char* DllExport FFmpegKitConfig_getNativeVersion() {
     return FFMPEG_KIT_VERSION;//(*env)->NewStringUTF(env, FFMPEG_KIT_VERSION);
 }
 
@@ -339,7 +395,7 @@ extern "C" char* DllExport FFmpegKitConfig_getNativeVersion() {
  * @param stringArray reference to the object holding FFmpeg command arguments
  * @return zero on successful execution, non-zero on error
  */
-extern "C" int DllExport FFmpegKitConfig_nativeFFmpegExecute(long id, char* stringArray[], int programArgumentCount) {
+int DllExport FFmpegKitConfig_nativeFFmpegExecute(long id, char* stringArray[], int programArgumentCount) {
     // jstring *tempArray = NULL;
     int argumentCount = 1;
     char **argv = NULL;
@@ -404,7 +460,7 @@ extern "C" int DllExport FFmpegKitConfig_nativeFFmpegExecute(long id, char* stri
  *
  * @param id session id
  */
-extern "C" void DllExport FFmpegKitConfig_nativeFFmpegCancel(long id) {
+void DllExport FFmpegKitConfig_nativeFFmpegCancel(long id) {
     cancel_operation(id);
 }
 
@@ -414,7 +470,7 @@ extern "C" void DllExport FFmpegKitConfig_nativeFFmpegCancel(long id) {
  * @param ffmpegPipePath full path of ffmpeg pipe
  * @return zero on successful creation, non-zero on error
  */
-extern "C" int DllExport FFmpegKitConfig_registerNewNativeFFmpegPipe(char* ffmpegPipePath) {
+int DllExport FFmpegKitConfig_registerNewNativeFFmpegPipe(char* ffmpegPipePath) {
     const char *ffmpegPipePathString = ffmpegPipePath;//(*env)->GetStringUTFChars(env, ffmpegPipePath, 0);
 
     return mkfifo(ffmpegPipePathString, S_IRWXU | S_IRWXG | S_IROTH);
@@ -425,7 +481,7 @@ extern "C" int DllExport FFmpegKitConfig_registerNewNativeFFmpegPipe(char* ffmpe
  *
  * @return FFmpegKit library build date
  */
-extern "C" char* DllExport FFmpegKitConfig_getNativeBuildDate() {
+char* DllExport FFmpegKitConfig_getNativeBuildDate() {
     static char buildDate[10];
     sprintf(buildDate, "%d", FFMPEG_KIT_BUILD_DATE);
     return buildDate;//(*env)->NewStringUTF(env, buildDate);
@@ -438,7 +494,7 @@ extern "C" char* DllExport FFmpegKitConfig_getNativeBuildDate() {
  * @param variableValue environment variable value
  * @return zero on success, non-zero on error
  */
-extern "C" int DllExport FFmpegKitConfig_setNativeEnvironmentVariable(char* variableName, char* variableValue) {
+int DllExport FFmpegKitConfig_setNativeEnvironmentVariable(char* variableName, char* variableValue) {
     const char *variableNameString = variableName;//(*env)->GetStringUTFChars(env, variableName, 0);
     const char *variableValueString = variableName;//(*env)->GetStringUTFChars(env, variableValue, 0);
 
@@ -454,7 +510,7 @@ extern "C" int DllExport FFmpegKitConfig_setNativeEnvironmentVariable(char* vari
  *
  * @param signum signal number
  */
-extern "C" void DllExport FFmpegKitConfig_ignoreNativeSignal(int signum) {
+void DllExport FFmpegKitConfig_ignoreNativeSignal(int signum) {
     if (signum == SIGQUIT) {
         handleSIGQUIT = 0;
     } else if (signum == SIGINT) {
@@ -474,6 +530,6 @@ extern "C" void DllExport FFmpegKitConfig_ignoreNativeSignal(int signum) {
  *
  * @param id session id
  */
-extern "C" int DllExport FFmpegKitConfig_messagesInTransmit(long id) {
+int DllExport FFmpegKitConfig_messagesInTransmit(long id) {
     return atomic_load(&sessionInTransitMessageCountMap[id % SESSION_MAP_SIZE]);
 }
